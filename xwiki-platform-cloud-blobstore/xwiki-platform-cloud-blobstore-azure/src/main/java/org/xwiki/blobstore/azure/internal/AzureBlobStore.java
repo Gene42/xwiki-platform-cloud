@@ -24,18 +24,22 @@ import org.xwiki.component.annotation.Component;
 import org.xwiki.component.phase.Initializable;
 import org.xwiki.component.phase.InitializationException;
 import org.xwiki.configuration.ConfigurationSource;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+
 import java.io.InputStream;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
+import com.azure.core.http.rest.PagedIterable;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.BlobErrorCode;
+import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobStorageException;
+import com.azure.storage.blob.models.ListBlobsOptions;
 
 /**
  * Amazon Azure blob store implementation. This is a singleton in order to reuse as much as possible the Azure client
@@ -121,8 +125,7 @@ public class AzureBlobStore implements BlobStore, Initializable
 
         this.containerClient = blobServiceClient.getBlobContainerClient(container);
 
-        boolean containerExists = this.containerClient.exists();
-        if (!containerExists) {
+        if (!doesContainerExist(this.containerClient)) {
             throw new InitializationException(String.format("Container [%s] does not exist", container));
         }
 
@@ -130,6 +133,21 @@ public class AzureBlobStore implements BlobStore, Initializable
 
         this.logger.debug("Azure blob store initialized using namespace '{}' and container '{}'",
             this.namespace != null ? this.namespace : "no namespace specified", container);
+    }
+
+    private static boolean doesContainerExist(BlobContainerClient containerClient) {
+        try {
+            PagedIterable<BlobItem> blobContainerName = containerClient
+                    .listBlobs(new ListBlobsOptions().setMaxResultsPerPage(1), null);
+
+            for (BlobItem blobItem : blobContainerName) {
+                return true;
+            }
+
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
